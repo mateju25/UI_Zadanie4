@@ -13,83 +13,72 @@ def euclid_distance(first: [], second: []) -> float:
     return sqrt(abs(first[0] - second[0]) ** 2 + abs(first[1] - second[1]) ** 2)
 
 
-root = None
-
-
-def classify_kNN_kdtree(x, y, k, root):
-    #global root
+# ohodnoti bod na zaklade datasetu pouzitim k-NN algoritmu (kD strom)
+def classify_knn_kdtree(x, y, k, root):
     colors = [0] * 4
+    # struktura vrati pole k najblizsich susedov
     neighs = kdtree.search_k_tree(root, [0, x, y], k)
     for j in range(0, k):
         choice = neighs[j]
         colors[choice[0]] += 1
 
+    # vyber typ, ktory sa najviac opakuje
+    maxi = colors.index(max(colors))
 
-    max = 0
-    for j in range(0, 4):
-        if colors[j] > colors[max]:
-            max = j
-
+    # ak viacero typov ma rovnaky pocet, tak vyber nahodne z nich jeden typ a ten pouzi
     choose = []
     for j in range(0, 4):
-        if colors[j] == colors[max]:
+        if colors[j] == colors[maxi]:
             choose.append(j)
 
-    #root = kdtree.clear_tree(root, neighs)
-
-    #root = kdtree.insert_tree(root, [max, x, y])
+    root = kdtree.clear_tree(root, neighs)
 
     return random.choice(choose)
 
 
-def classify(x, y, k, basepoints):
+# ohodnoti bod na zaklade datasetu pouzitim k-NN algoritmu (brute force)
+def classify_knn(x, y, k, basepoints):
     euklid_dists = []
+    # vytvor utriedeny zoznam vzdialenosti od bodu ku kazdemu bodu z datasetu
     for j in range(0, len(basepoints)):
         bisect.insort(euklid_dists, (euclid_distance([x, y], basepoints[j][1:]), j))
 
+    # zrataj pocet jednotlivych typov vsetkych najblizsich susedov
     colors = [0] * 4
     for j in range(0, k):
         choice = euklid_dists.pop(0)[1]
         colors[basepoints[choice][0]] += 1
 
-    max = 0
-    for j in range(0, 4):
-        if colors[j] > colors[max]:
-            max = j
+    # vyber typ, ktory sa najviac opakuje
+    maxi = colors.index(max(colors))
 
+    # ak viacero typov ma rovnaky pocet, tak vyber nahodne z nich jeden typ a ten pouzi
     choose = []
     for j in range(0, 4):
-        if colors[j] == colors[max]:
+        if colors[j] == colors[maxi]:
             choose.append(j)
 
     return random.choice(choose)
 
 
-def classify_weighted(x, y, k, basepoints):
+# ohodnoti bod na zaklade datasetu pouzitim Wk-NN algoritmu (brute force)
+def classify_wknn(x, y, k, basepoints):
     euklid_dists = []
+    # vytvor utriedeny zoznam vzdialenosti od bodu ku kazdemu bodu z datasetu
     for j in range(0, len(basepoints)):
         bisect.insort(euklid_dists, (euclid_distance([x, y], basepoints[j][1:]), j))
 
+    # vyrataj vzdialenost ku kazdemu bodu a cim je bod blizsie ,tym ma vacsiu vahu pri urcovani typu noveho bodu
     colors = [0] * 4
     for j in range(0, k):
         choice = euklid_dists.pop(0)
-        if basepoints[choice[1]][0] == 'R':
-            colors[0] += (1 / (choice[0]+0.001))
-        elif basepoints[choice[1]][0] == 'G':
-            colors[1] += (1 / (choice[0]+0.001))
-        elif basepoints[choice[1]][0] == 'B':
-            colors[2] += (1 / (choice[0]+0.001))
-        elif basepoints[choice[1]][0] == 'P':
-            colors[3] += (1 / (choice[0]+0.001))
+        colors[basepoints[choice[1]][0]] += (1 / (choice[0]+0.001))
 
-    max = 0
-    for j in range(0, 4):
-        if colors[j] > colors[max]:
-            max = j
-
-    return max
+    # vrat typ bodu, ktory ma najlepsie hodnotenie
+    return colors.index(max(colors))
 
 
+# vytvori mediany pociatocnych bodov a vytvori normalne rozlozenie bodov okolo tohoto medianu
 def create_new_points_gauss(number_of_points, basepoints):
     median = {}
     for x in basepoints:
@@ -116,6 +105,7 @@ def create_new_points_gauss(number_of_points, basepoints):
     return points
 
 
+# vytvori rozlozenie bodov take, ako v zadani
 def create_new_points_random(number_of_points):
     points = []
     type = 0
@@ -157,10 +147,9 @@ def create_new_points_random(number_of_points):
 
 
 def num_of_errors(new_points, k_nn, choice):
-    global root
+    root = None
     basepoints = []
     input_loader.load_input_to_list("dataset", basepoints)
-    base = len(basepoints)
 
     draw = [x for x in basepoints]
 
@@ -168,28 +157,27 @@ def num_of_errors(new_points, k_nn, choice):
     points = create_new_points_gauss(new_points, basepoints)
 
     if choice == 2:
-        for i in range(0, base):
-            root = kdtree.insert_tree(root, points[i])
+        for i in range(0, len(basepoints)):
+            root = kdtree.insert_tree(root, basepoints[i])
 
     errors = 0
-    for i in range(base, len(points)):
-        if i % 1000 == 0:
-            print(i)
+    for i in range(0, len(points)):
         type = points[i][0]
         x = points[i][1]
         y = points[i][2]
 
         if choice == 0:
-            expected_type = classify(x, y, k_nn, basepoints)
+            expected_type = classify_knn(x, y, k_nn, basepoints)
         elif choice == 1:
-            expected_type = classify_weighted(x, y, k_nn, basepoints)
-        elif choice == 2:
-            expected_type = classify_kNN_kdtree(x, y, k_nn)
+            expected_type = classify_wknn(x, y, k_nn, basepoints)
+        else:
+            expected_type = classify_knn_kdtree(x, y, k_nn, root)
 
         if expected_type != type:
             errors += 1
 
         draw.append((expected_type, x, y))
+
     gui.make_gui(draw)
     return errors
 
