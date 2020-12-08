@@ -15,7 +15,7 @@ ADDING = True
 
 
 # vrati euklidovnsku vzdialenost dvoch bodov
-def euclid_distance(first, second):
+def euclid_distance(first: [], second: []) -> float:
     return (first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2
 
 
@@ -23,8 +23,6 @@ def get_k_neighs_heap(x, y, k, base_points):
 
     neigh = []
     for j in range(0, len(base_points)):
-        if base_points[j] is None:
-            break
         heappush(neigh, (euclid_distance([x, y], base_points[j][1:]), base_points[j][0]))
 
     return nsmallest(k, neigh)
@@ -39,7 +37,7 @@ def classify(x, y, k, base_points, root=None):
     global KNN, BRUTE_FORCE, RANDOM
 
     if BRUTE_FORCE:
-        neigh = numpy.array(get_k_neighs_heap(x, y, k, base_points))
+        neigh = get_k_neighs_heap(x, y, k, base_points)
     else:
         neigh = get_k_neighs_kdtree(x, y, k, root)
         root = kdtree.clear_tree(root, neigh)
@@ -86,7 +84,7 @@ def create_new_points_gauss(number_of_points, base_points):
         x = statistics.median(x)
         y = statistics.median(y)
         median[group] = (x, y)
-    points = numpy.empty(number_of_points, dtype=numpy.object)
+    points = []
     type = -1
     for i in range(0, number_of_points):
         type = (type + 1) % 4
@@ -98,14 +96,14 @@ def create_new_points_gauss(number_of_points, base_points):
         while y <= -5000 or y >= 5000:
             y = random.gauss(median[type][1], 1200)
 
-        points[i] = [type, x, y]
+        points.append((type, x, y))
 
     return points
 
 
 # vytvori rozlozenie bodov take, ako v zadani
 def create_new_points_random(number_of_points):
-    points = numpy.empty(number_of_points, dtype=numpy.object)
+    points = []
     type = 0
     for i in range(0, number_of_points):
         type = (type + 1) % 4
@@ -140,15 +138,14 @@ def create_new_points_random(number_of_points):
                     x = random.randint(-5000, 5000)
                     y = random.randint(-5000, 5000)
 
-        points[i] = [type, x, y]
-        #numpy.append(points, [type, x, y])
+        points.append((type, x, y))
     return points
 
 
 def num_of_errors(base_points, points, k_nn):
     global BRUTE_FORCE, ADDING
     root = None
-    draw = numpy.copy(basepoints)
+    draw = [x for x in basepoints]
 
     if not BRUTE_FORCE:
         for i in range(0, len(base_points)):
@@ -166,15 +163,15 @@ def num_of_errors(base_points, points, k_nn):
             errors += 1
 
         if ADDING:
-            base_points[20+i] = [expected_type, x, y]
+            base_points.append((expected_type, x, y))
             if not BRUTE_FORCE:
                 root = kdtree.insert_tree(root, (expected_type, x, y))
-        draw[20+i] = [expected_type, x, y]
+        draw.append((expected_type, x, y))
 
     return errors, draw
 
 
-choice = "a" #input("Brute force/ kd-tree? a/n: ")
+choice = "n" #input("Brute force/ kd-tree? a/n: ")
 if choice == 'a':
     BRUTE_FORCE = True
 else:
@@ -198,15 +195,15 @@ if choice == 'a':
 else:
     RANDOM = False
 
-num = int(input("Pocet bodov: "))
-basepoints = numpy.empty(num+20, dtype=numpy.object)
+basepoints = []
+points = []
 input_loader.load_input_to_list("dataset", basepoints)
-
+#make_gui(basepoints)
 choice = "n" #input("Gaussove rozlozenie bodov/ zadanie? a/n: ")
 if choice == 'a':
-    points = create_new_points_gauss(num, basepoints)
+    points = create_new_points_gauss(int(input("Pocet bodov: ")), basepoints)
 else:
-    points = create_new_points_random(num)
+    points = create_new_points_random(int(input("Pocet bodov: ")))
 
 start = time.time()
 error, draw = num_of_errors(basepoints, points, 5) #int(input("Ake k?:"))
