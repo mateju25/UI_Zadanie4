@@ -1,87 +1,77 @@
 import random
 import time
-from math import sqrt
-import bisect
+from heapq import heappush, nsmallest
 import statistics
+import numpy
 import input_loader
-import gui
+from gui import make_gui
 import kdtree
+
+
+BRUTE_FORCE = True
+KNN = True
+RANDOM = True
+ADDING = True
 
 
 # vrati euklidovnsku vzdialenost dvoch bodov
 def euclid_distance(first: [], second: []) -> float:
-    return sqrt(abs(first[0] - second[0]) ** 2 + abs(first[1] - second[1]) ** 2)
+    return (first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2
 
 
-# ohodnoti bod na zaklade datasetu pouzitim k-NN algoritmu (kD strom)
-def classify_knn_kdtree(x, y, k, root):
-    colors = [0] * 4
-    # struktura vrati pole k najblizsich susedov
-    neighs = kdtree.search_k_tree(root, [0, x, y], k)
-    for j in range(0, k):
-        choice = neighs[j]
-        colors[choice[0]] += 1
+def get_k_neighs_heap(x, y, k, base_points):
 
-    # vyber typ, ktory sa najviac opakuje
-    maxi = colors.index(max(colors))
+    neigh = []
+    for j in range(0, len(base_points)):
+        heappush(neigh, (euclid_distance([x, y], base_points[j][1:]), base_points[j][0]))
 
-    # ak viacero typov ma rovnaky pocet, tak vyber nahodne z nich jeden typ a ten pouzi
-    choose = []
-    for j in range(0, 4):
-        if colors[j] == colors[maxi]:
-            choose.append(j)
+    return nsmallest(k, neigh)
 
-    root = kdtree.clear_tree(root, neighs)
 
-    return random.choice(choose)
+def get_k_neighs_kdtree(x, y, k, root):
+    return kdtree.search_k_tree(root, [0, x, y], k)
 
 
 # ohodnoti bod na zaklade datasetu pouzitim k-NN algoritmu (brute force)
-def classify_knn(x, y, k, basepoints):
-    euklid_dists = []
-    # vytvor utriedeny zoznam vzdialenosti od bodu ku kazdemu bodu z datasetu
-    for j in range(0, len(basepoints)):
-        bisect.insort(euklid_dists, (euclid_distance([x, y], basepoints[j][1:]), j))
+def classify(x, y, k, base_points, root=None):
+    global KNN, BRUTE_FORCE, RANDOM
 
-    # zrataj pocet jednotlivych typov vsetkych najblizsich susedov
-    colors = [0] * 4
-    for j in range(0, k):
-        choice = euklid_dists.pop(0)[1]
-        colors[basepoints[choice][0]] += 1
+    if BRUTE_FORCE:
+        neigh = get_k_neighs_heap(x, y, k, base_points)
+    else:
+        neigh = get_k_neighs_kdtree(x, y, k, root)
+        root = kdtree.clear_tree(root, neigh)
+        neigh = [(euclid_distance([p[1], p[2]], [x, y]), p[0]) for p in neigh]
 
-    # vyber typ, ktory sa najviac opakuje
+    if KNN:
+        colors = [0] * 4
+        for j in range(0, k):
+            choice = neigh[j][1]
+            colors[choice] += 1
+    else:
+        colors = [0] * 4
+        for j in range(0, k):
+            choice = neigh[j][1]
+            colors[choice] += (1 / (neigh[j][0] + 0.001))
+
     maxi = colors.index(max(colors))
 
-    # ak viacero typov ma rovnaky pocet, tak vyber nahodne z nich jeden typ a ten pouzi
-    choose = []
-    for j in range(0, 4):
-        if colors[j] == colors[maxi]:
-            choose.append(j)
+    if RANDOM:
+        # ak viacero typov ma rovnaky pocet, tak vyber nahodne z nich jeden typ a ten pouzi
+        choose = []
+        for j in range(0, 4):
+            if colors[j] == colors[maxi]:
+                choose.append(j)
 
-    return random.choice(choose)
-
-
-# ohodnoti bod na zaklade datasetu pouzitim Wk-NN algoritmu (brute force)
-def classify_wknn(x, y, k, basepoints):
-    euklid_dists = []
-    # vytvor utriedeny zoznam vzdialenosti od bodu ku kazdemu bodu z datasetu
-    for j in range(0, len(basepoints)):
-        bisect.insort(euklid_dists, (euclid_distance([x, y], basepoints[j][1:]), j))
-
-    # vyrataj vzdialenost ku kazdemu bodu a cim je bod blizsie ,tym ma vacsiu vahu pri urcovani typu noveho bodu
-    colors = [0] * 4
-    for j in range(0, k):
-        choice = euklid_dists.pop(0)
-        colors[basepoints[choice[1]][0]] += (1 / (choice[0]+0.001))
-
-    # vrat typ bodu, ktory ma najlepsie hodnotenie
-    return colors.index(max(colors))
+        return random.choice(choose)
+    else:
+        return maxi
 
 
 # vytvori mediany pociatocnych bodov a vytvori normalne rozlozenie bodov okolo tohoto medianu
-def create_new_points_gauss(number_of_points, basepoints):
+def create_new_points_gauss(number_of_points, base_points):
     median = {}
-    for x in basepoints:
+    for x in base_points:
         if x[0] not in median:
             median[x[0]] = []
         median[x[0]].append(x[1:3])
@@ -98,8 +88,14 @@ def create_new_points_gauss(number_of_points, basepoints):
     type = -1
     for i in range(0, number_of_points):
         type = (type + 1) % 4
-        x = random.gauss(median[type][0], 1400)
-        y = random.gauss(median[type][1], 1400)
+        x = random.gauss(median[type][0], 1200)
+        while x <= -5000 or x >= 5000:
+            x = random.gauss(median[type][0], 1200)
+
+        y = random.gauss(median[type][1], 1200)
+        while y <= -5000 or y >= 5000:
+            y = random.gauss(median[type][1], 1200)
+
         points.append((type, x, y))
 
     return points
@@ -146,19 +142,14 @@ def create_new_points_random(number_of_points):
     return points
 
 
-def num_of_errors(new_points, k_nn, choice):
+def num_of_errors(base_points, points, k_nn):
+    global BRUTE_FORCE, ADDING
     root = None
-    basepoints = []
-    input_loader.load_input_to_list("dataset", basepoints)
-
     draw = [x for x in basepoints]
 
-    #points = create_new_points_random(new_points)
-    points = create_new_points_gauss(new_points, basepoints)
-
-    if choice == 2:
-        for i in range(0, len(basepoints)):
-            root = kdtree.insert_tree(root, basepoints[i])
+    if not BRUTE_FORCE:
+        for i in range(0, len(base_points)):
+            root = kdtree.insert_tree(root, base_points[i])
 
     errors = 0
     for i in range(0, len(points)):
@@ -166,33 +157,71 @@ def num_of_errors(new_points, k_nn, choice):
         x = points[i][1]
         y = points[i][2]
 
-        if choice == 0:
-            expected_type = classify_knn(x, y, k_nn, basepoints)
-        elif choice == 1:
-            expected_type = classify_wknn(x, y, k_nn, basepoints)
-        else:
-            expected_type = classify_knn_kdtree(x, y, k_nn, root)
+        expected_type = classify(x, y, k_nn, base_points, root)
 
         if expected_type != type:
             errors += 1
 
+        if ADDING:
+            base_points.append((expected_type, x, y))
+            if not BRUTE_FORCE:
+                root = kdtree.insert_tree(root, (expected_type, x, y))
         draw.append((expected_type, x, y))
 
-    gui.make_gui(draw)
-    return errors
+    return errors, draw
 
 
+choice = "n" #input("Brute force/ kd-tree? a/n: ")
+if choice == 'a':
+    BRUTE_FORCE = True
+else:
+    BRUTE_FORCE = False
 
-# sum = 0
-#
-# for k in range(1, 21):
-#     sum = 0
-#     for i in range(0, 100):
-#         sum += num_of_errors(40000, k)
-#
-#     print("K: ", k, "Errors: ", sum/100)
-# random.seed(1)
+choice = "a" #input("Knn/ Wknn? a/n: ")
+if choice == 'a':
+    KNN = True
+else:
+    KNN = False
+
+choice = "a" #input("Pridavat body? a/n: ")
+if choice == 'a':
+    ADDING = True
+else:
+    ADDING = False
+
+choice = "a" #input("Random rozhodnutie o type? a/n: ")
+if choice == 'a':
+    RANDOM = True
+else:
+    RANDOM = False
+
+basepoints = []
+points = []
+input_loader.load_input_to_list("dataset", basepoints)
+#make_gui(basepoints)
+choice = "n" #input("Gaussove rozlozenie bodov/ zadanie? a/n: ")
+if choice == 'a':
+    points = create_new_points_gauss(int(input("Pocet bodov: ")), basepoints)
+else:
+    points = create_new_points_random(int(input("Pocet bodov: ")))
+
 start = time.time()
-print("Chyby: ", num_of_errors(40000, 15, 1))
+error, draw = num_of_errors(basepoints, points, 5) #int(input("Ake k?:"))
+print(error)
 end = time.time()
-print("Cas: ", end - start)
+print(end - start)
+# from scipy.spatial import Voronoi, voronoi_plot_2d
+# vor = Voronoi(numpy.array([x[1:] for x in draw]))
+# import matplotlib.pyplot as plt
+# fig = voronoi_plot_2d(vor)
+# plt.show()
+make_gui(draw)
+# for i in range(1, 20):
+#     errors = []
+#     timeS = []
+#     for _ in range(0, 100):
+#         start = time.time()
+#         errors.append(num_of_errors(basepoints, points, i, 0))
+#         end = time.time()
+#         timeS.append(end - start)
+#     print(i, " ",  sum(errors) / len(errors), " ",  sum(timeS) / len(timeS))
