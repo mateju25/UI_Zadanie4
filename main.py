@@ -2,7 +2,6 @@ import random
 import time
 from heapq import heappush, nsmallest
 import statistics
-import numpy
 import input_loader
 from gui import make_gui
 import kdtree
@@ -20,7 +19,6 @@ def euclid_distance(first: [], second: []) -> float:
 
 
 def get_k_neighs_heap(x, y, k, base_points):
-
     neigh = []
     for j in range(0, len(base_points)):
         heappush(neigh, (euclid_distance([x, y], base_points[j][1:]), base_points[j][0]))
@@ -145,11 +143,12 @@ def create_new_points_random(number_of_points):
 def num_of_errors(base_points, points, k_nn):
     global BRUTE_FORCE, ADDING
     root = None
-    draw = [x for x in basepoints]
+    draw = [x for x in base_points]
+    cpy_base_points = [x for x in base_points]
 
     if not BRUTE_FORCE:
-        for i in range(0, len(base_points)):
-            root = kdtree.insert_tree(root, base_points[i])
+        for i in range(0, len(cpy_base_points)):
+            root = kdtree.insert_tree(root, cpy_base_points[i])
 
     errors = 0
     for i in range(0, len(points)):
@@ -157,71 +156,78 @@ def num_of_errors(base_points, points, k_nn):
         x = points[i][1]
         y = points[i][2]
 
-        expected_type = classify(x, y, k_nn, base_points, root)
+        expected_type = classify(x, y, k_nn, cpy_base_points, root)
 
         if expected_type != type:
             errors += 1
 
         if ADDING:
-            base_points.append((expected_type, x, y))
             if not BRUTE_FORCE:
                 root = kdtree.insert_tree(root, (expected_type, x, y))
+            else:
+                cpy_base_points.append((expected_type, x, y))
         draw.append((expected_type, x, y))
+
+        # if i % 10000 == 0:
+        #     make_gui(draw)
 
     return errors, draw
 
 
-choice = "n" #input("Brute force/ kd-tree? a/n: ")
-if choice == 'a':
+
+random.seed(0)
+basepoints = []
+points = []
+input_loader.load_input_to_list("dataset2", basepoints)
+
+choice = input("Brute force/ kd-tree? 1/2: ")
+if choice == '1':
     BRUTE_FORCE = True
 else:
     BRUTE_FORCE = False
 
-choice = "a" #input("Knn/ Wknn? a/n: ")
-if choice == 'a':
+choice = input("Knn/ Wknn? 1/2: ")
+if choice == '1':
     KNN = True
 else:
     KNN = False
 
-choice = "a" #input("Pridavat body? a/n: ")
+choice = input("Pridavat body? a/n: ")
 if choice == 'a':
     ADDING = True
 else:
     ADDING = False
 
-choice = "a" #input("Random rozhodnutie o type? a/n: ")
+choice = input("Random rozhodnutie o type? a/n: ")
 if choice == 'a':
     RANDOM = True
 else:
     RANDOM = False
 
-basepoints = []
-points = []
-input_loader.load_input_to_list("dataset", basepoints)
-#make_gui(basepoints)
-choice = "n" #input("Gaussove rozlozenie bodov/ zadanie? a/n: ")
-if choice == 'a':
+choice = '2'#input("Gaussove rozlozenie bodov/ body ako v zadani? 1/2: ")
+if choice == '2':
     points = create_new_points_gauss(int(input("Pocet bodov: ")), basepoints)
 else:
     points = create_new_points_random(int(input("Pocet bodov: ")))
 
 start = time.time()
-error, draw = num_of_errors(basepoints, points, 5) #int(input("Ake k?:"))
-print(error)
+error, draw = num_of_errors(basepoints, points, int(input("Parameter k: ")))
+print("Počet chýb: ", error)
 end = time.time()
-print(end - start)
-# from scipy.spatial import Voronoi, voronoi_plot_2d
-# vor = Voronoi(numpy.array([x[1:] for x in draw]))
-# import matplotlib.pyplot as plt
-# fig = voronoi_plot_2d(vor)
-# plt.show()
+print("Čas:", end - start)
+
 make_gui(draw)
-# for i in range(1, 20):
-#     errors = []
-#     timeS = []
-#     for _ in range(0, 100):
-#         start = time.time()
-#         errors.append(num_of_errors(basepoints, points, i, 0))
-#         end = time.time()
-#         timeS.append(end - start)
-#     print(i, " ",  sum(errors) / len(errors), " ",  sum(timeS) / len(timeS))
+
+
+
+# for i in range(7, 16):
+#      errors = []
+#      timeS = []
+#      points = create_new_points_random(40000)
+#      for _ in range(0, 100):
+#          start = time.time()
+#          error, draw = num_of_errors(basepoints, points, i)
+#          errors.append(error)
+#          end = time.time()
+#          timeS.append(end - start)
+#      print(i, " ",  sum(errors) / len(errors), " ",  sum(timeS) / len(timeS))
